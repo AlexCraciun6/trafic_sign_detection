@@ -128,8 +128,120 @@ Mat colorSegmentation(const Mat& input, int hueMin, int hueMax,
     return mask;
 }
 
-// Function to segment multiple colors and combine masks
-void detectTrafficSignsByColor(const Mat& input) {
+
+// Improved function to identify traffic sign shapes from contours
+void detectShapes(const Mat& input, const Mat& colorMask, const String& windowName, const String& colorName) {
+    // Find contours in the color mask
+    vector<vector<Point>> contours;
+    vector<Vec4i> hierarchy;
+    findContours(colorMask.clone(), contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    // Create image for drawing results
+    Mat shapesImage = input.clone();
+
+    // Process each contour
+    for (size_t i = 0; i < contours.size(); i++) {
+        // Filter small contours
+        double area = contourArea(contours[i]);
+        if (area < 100) continue;
+
+        // Get the minimum enclosing circle
+        Point2f center;
+        float radius;
+        minEnclosingCircle(contours[i], center, radius);
+
+        // Calculate circularity - how close to a perfect circle the shape is
+        double perimeter = arcLength(contours[i], true);
+        double circularity = 4 * CV_PI * area / (perimeter * perimeter);
+
+        // Approximate contour with polygon
+        vector<Point> approx;
+        double epsilon = 0.03 * perimeter;
+        approxPolyDP(contours[i], approx, epsilon, true);
+
+        // Get the number of vertices in the polygon
+        int vertices = (int)approx.size();
+
+        // Get bounding rect for text placement
+        Rect boundRect = boundingRect(approx);
+        Point textPoint(boundRect.x, boundRect.y - 10);
+
+        // Get some shape properties for better classification
+        double width = boundRect.width;
+        double height = boundRect.height;
+        double aspectRatio = width / height;
+
+        // Classify shape based on number of vertices and other properties
+        String shapeName;
+        Scalar color;
+        String signType = "Unknown";
+
+        if (circularity > 0.8 && vertices >= 8) {
+            shapeName = "Circle";
+            color = Scalar(255, 0, 255); // Magenta
+
+            // Determine sign type based on color
+            if (colorName == "Red") {
+                signType = "Prohibition";
+            }
+            else if (colorName == "Blue") {
+                signType = "Information";
+            }
+            else if (colorName == "Yellow") {
+                signType = "Warning";
+            }
+        }
+        else if (vertices == 3) {
+            shapeName = "Triangle";
+            color = Scalar(0, 255, 0); // Green
+            signType = "Warning";
+        }
+        else if (vertices == 4) {
+            if (aspectRatio >= 0.9 && aspectRatio <= 1.1) {
+                shapeName = "Square";
+            }
+            else {
+                shapeName = "Rectangle";
+            }
+            color = Scalar(0, 0, 255); // Red
+            signType = "Information";
+        }
+        else if (vertices == 8) {
+            shapeName = "Octagon";
+            color = Scalar(255, 0, 0); // Blue
+            signType = "Stop";
+        }
+        else {
+            shapeName = "Other";
+            color = Scalar(255, 255, 0); // Yellow
+        }
+
+        // Draw contour
+        drawContours(shapesImage, contours, (int)i, color, 2);
+
+        // Draw shape name
+        putText(shapesImage, shapeName, Point(boundRect.x, boundRect.y - 20),
+            FONT_HERSHEY_SIMPLEX, 0.5, color, 2);
+
+        // Draw sign type
+        putText(shapesImage, signType, Point(boundRect.x, boundRect.y - 5),
+            FONT_HERSHEY_SIMPLEX, 0.5, color, 2);
+
+        // Draw bounding box for clarity
+        rectangle(shapesImage, boundRect, Scalar(0, 255, 255), 2);
+
+        // Draw minimum enclosing circle for non-circular objects to visualize fit
+        if (shapeName != "Circle" && shapeName != "Octagon") {
+            circle(shapesImage, center, (int)radius, Scalar(128, 128, 128), 1);
+        }
+    }
+
+    imshow(windowName, shapesImage);
+}
+
+
+// Enhanced function to segment and detect traffic signs
+void detectTrafficSignsByColorAndShape(const Mat& input) {
     // Create windows for visualization
     namedWindow("Original", WINDOW_AUTOSIZE);
     namedWindow("Red Mask", WINDOW_AUTOSIZE);
@@ -167,27 +279,10 @@ void detectTrafficSignsByColor(const Mat& input) {
     Mat cannyEdges = cannyEdgeDetection(input, 50, 150);
     imshow("Canny Edges", cannyEdges);
 
-    Mat sobelEdges = sobelEdgeDetection(input, 1, 1);
-    imshow("Sobel Edges", sobelEdges);
-
-    // Detect contours on the red mask
-    detectAndDrawContours(input, redMask, "Red Sign Contours");
-
-    // Detect contours on the blue mask
-    detectAndDrawContours(input, blueMask, "Blue Sign Contours");
-
-    // Detect contours on the yellow mask
-    detectAndDrawContours(input, yellowMask, "Yellow Sign Contours");
-
-    // We can also combine the color mask with edge detection for better results
-    Mat redSignEdges, blueSignEdges, yellowSignEdges;
-    bitwise_and(cannyEdges, redMask, redSignEdges);
-    bitwise_and(cannyEdges, blueMask, blueSignEdges);
-    bitwise_and(cannyEdges, yellowMask, yellowSignEdges);
-
-    imshow("Red Sign Edges", redSignEdges);
-    imshow("Blue Sign Edges", blueSignEdges);
-    imshow("Yellow Sign Edges", yellowSignEdges);
+    // Apply shape detection on each color mask, passing the color name
+    detectShapes(input, redMask, "Red Shapes", "Red");
+    detectShapes(input, blueMask, "Blue Shapes", "Blue");
+    detectShapes(input, yellowMask, "Yellow Shapes", "Yellow");
 
     waitKey();
 }
@@ -205,7 +300,7 @@ void testTrafficSignDetection()
         }
 
         // Process the image
-        detectTrafficSignsByColor(src);
+        detectTrafficSignsByColorAndShape(src);
     }
 }
 
