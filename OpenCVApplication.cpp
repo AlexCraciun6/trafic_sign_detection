@@ -163,7 +163,6 @@ void detectTrafficSignsByColor(const Mat& input) {
     imshow("Blue Signs", blueResult);
     imshow("Yellow Signs", yellowResult);
 
-    //
     // Apply edge detection to the original image
     Mat cannyEdges = cannyEdgeDetection(input, 50, 150);
     imshow("Canny Edges", cannyEdges);
@@ -174,10 +173,21 @@ void detectTrafficSignsByColor(const Mat& input) {
     // Detect contours on the red mask
     detectAndDrawContours(input, redMask, "Red Sign Contours");
 
+    // Detect contours on the blue mask
+    detectAndDrawContours(input, blueMask, "Blue Sign Contours");
+
+    // Detect contours on the yellow mask
+    detectAndDrawContours(input, yellowMask, "Yellow Sign Contours");
+
     // We can also combine the color mask with edge detection for better results
-    Mat redSignEdges;
+    Mat redSignEdges, blueSignEdges, yellowSignEdges;
     bitwise_and(cannyEdges, redMask, redSignEdges);
+    bitwise_and(cannyEdges, blueMask, blueSignEdges);
+    bitwise_and(cannyEdges, yellowMask, yellowSignEdges);
+
     imshow("Red Sign Edges", redSignEdges);
+    imshow("Blue Sign Edges", blueSignEdges);
+    imshow("Yellow Sign Edges", yellowSignEdges);
 
     waitKey();
 }
