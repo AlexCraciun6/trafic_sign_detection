@@ -12,6 +12,8 @@
 
 wchar_t* projectPath;
 
+using namespace std;
+
 void testOpenImage()
 {
 	char fname[MAX_PATH];
@@ -22,6 +24,85 @@ void testOpenImage()
 		imshow("image",src);
 		waitKey();
 	}
+}
+
+// Function to perform edge detection using Canny
+Mat cannyEdgeDetection(const Mat& input, double threshold1, double threshold2, int apertureSize = 3) {
+    Mat grayImage, edges;
+
+    // Convert to grayscale if image is colored
+    if (input.channels() > 1) {
+        cvtColor(input, grayImage, COLOR_BGR2GRAY);
+    }
+    else {
+        grayImage = input.clone();
+    }
+
+    // Apply Gaussian blur to reduce noise
+    GaussianBlur(grayImage, grayImage, Size(5, 5), 0);
+
+    // Apply Canny edge detector
+    Canny(grayImage, edges, threshold1, threshold2, apertureSize);
+
+    return edges;
+}
+
+// Function to perform edge detection using Sobel
+Mat sobelEdgeDetection(const Mat& input, int dx, int dy, int ksize = 3) {
+    Mat grayImage, gradX, gradY, absGradX, absGradY, edges;
+
+    // Convert to grayscale if image is colored
+    if (input.channels() > 1) {
+        cvtColor(input, grayImage, COLOR_BGR2GRAY);
+    }
+    else {
+        grayImage = input.clone();
+    }
+
+    // Apply Gaussian blur to reduce noise
+    GaussianBlur(grayImage, grayImage, Size(5, 5), 0);
+
+    // Compute gradients in x and y direction
+    Sobel(grayImage, gradX, CV_16S, dx, 0, ksize);
+    Sobel(grayImage, gradY, CV_16S, 0, dy, ksize);
+
+    // Convert to absolute values
+    convertScaleAbs(gradX, absGradX);
+    convertScaleAbs(gradY, absGradY);
+
+    // Combine gradients
+    addWeighted(absGradX, 0.5, absGradY, 0.5, 0, edges);
+
+    return edges;
+}
+
+// Function to detect contours from edge images or binary masks
+void detectAndDrawContours(const Mat& original, const Mat& binaryImage, const String& windowName) {
+    vector<vector<Point>> contours;
+    vector<Vec4i> hierarchy;
+
+    // Find contours in the binary image
+    findContours(binaryImage, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    // Create a colored image for displaying contours
+    Mat contourImage = original.clone();
+
+    // Filter contours based on area to remove noise
+    for (size_t i = 0; i < contours.size(); i++) {
+        double area = contourArea(contours[i]);
+        if (area < 100) continue; // Skip small contours
+
+        // Draw contour with a random color
+        Scalar color = Scalar(0, 255, 0); // Green contours
+        drawContours(contourImage, contours, (int)i, color, 2, LINE_8, hierarchy);
+
+        // Get bounding rectangle for the contour
+        Rect boundRect = boundingRect(contours[i]);
+        rectangle(contourImage, boundRect, Scalar(255, 0, 0), 2); // Blue rectangle
+    }
+
+    // Display result
+    imshow(windowName, contourImage);
 }
 
 // Function to perform color segmentation in HSV space
@@ -81,6 +162,22 @@ void detectTrafficSignsByColor(const Mat& input) {
     imshow("Red Signs", redResult);
     imshow("Blue Signs", blueResult);
     imshow("Yellow Signs", yellowResult);
+
+    //
+    // Apply edge detection to the original image
+    Mat cannyEdges = cannyEdgeDetection(input, 50, 150);
+    imshow("Canny Edges", cannyEdges);
+
+    Mat sobelEdges = sobelEdgeDetection(input, 1, 1);
+    imshow("Sobel Edges", sobelEdges);
+
+    // Detect contours on the red mask
+    detectAndDrawContours(input, redMask, "Red Sign Contours");
+
+    // We can also combine the color mask with edge detection for better results
+    Mat redSignEdges;
+    bitwise_and(cannyEdges, redMask, redSignEdges);
+    imshow("Red Sign Edges", redSignEdges);
 
     waitKey();
 }
