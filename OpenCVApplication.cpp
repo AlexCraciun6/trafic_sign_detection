@@ -76,35 +76,6 @@ Mat sobelEdgeDetection(const Mat& input, int dx, int dy, int ksize = 3) {
     return edges;
 }
 
-// Function to detect contours from edge images or binary masks
-void detectAndDrawContours(const Mat& original, const Mat& binaryImage, const String& windowName) {
-    vector<vector<Point>> contours;
-    vector<Vec4i> hierarchy;
-
-    // Find contours in the binary image
-    findContours(binaryImage, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-
-    // Create a colored image for displaying contours
-    Mat contourImage = original.clone();
-
-    // Filter contours based on area to remove noise
-    for (size_t i = 0; i < contours.size(); i++) {
-        double area = contourArea(contours[i]);
-        if (area < 100) continue; // Skip small contours
-
-        // Draw contour with a random color
-        Scalar color = Scalar(0, 255, 0); // Green contours
-        drawContours(contourImage, contours, (int)i, color, 2, LINE_8, hierarchy);
-
-        // Get bounding rectangle for the contour
-        Rect boundRect = boundingRect(contours[i]);
-        rectangle(contourImage, boundRect, Scalar(255, 0, 0), 2); // Blue rectangle
-    }
-
-    // Display result
-    imshow(windowName, contourImage);
-}
-
 // Function to perform color segmentation in HSV space
 Mat colorSegmentation(const Mat& input, int hueMin, int hueMax,
     int satMin, int satMax, int valMin, int valMax) {
@@ -309,7 +280,6 @@ int main()
 	cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_FATAL);
 	projectPath = _wgetcwd(0, 0);
 
-	//testOpenImage();
     testTrafficSignDetection();
 	return 0;
 }
